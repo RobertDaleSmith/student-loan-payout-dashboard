@@ -1,0 +1,39 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Backend uploads
+backend/uploads/
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build directories
+frontend/build/
+frontend/node_modules/
+
+# Coverage directories
+coverage/
+
+# Miscellaneous
+*.env
+*.local
+
+# Ignore all XML files except the sample data
+*.xml
+!data/dunkin.xml
