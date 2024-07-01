@@ -1,27 +1,57 @@
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const xml2js = require('xml2js');
 const cors = require('cors');
 const fs = require('fs');
-const axios = require('axios');
+const mongoose = require('mongoose');
+const { runWorker } = require('./worker');
+const Batch = require('./models/Batch');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
-const port = 5001;
+const port = process.env.PORT || 5001;
+
+mongoose.connect('mongodb://localhost:27017/studentLoanPayoutsDB')
+  .then(() => {
+    console.log('Connected to MongoDB');
+  })
+  .catch((err) => {
+    console.error('Error connecting to MongoDB', err);
+  });
 
 app.use(cors());
 app.use(express.json());
 
 const processXMLData = (xmlData) => {
-  // console.log(JSON.stringify(xmlData, null, 2)); // Pretty print the parsed XML data
-
-  // Assuming xmlData has the structure: { root: { row: [ ... ] } }
   if (xmlData && xmlData.root && xmlData.root.row) {
     const payments = xmlData.root.row.map(row => ({
-      employee: row.Employee[0],
-      payor: row.Payor[0],
-      payee: row.Payee[0],
-      amount: row.Amount[0]
+      employee: {
+        dunkinId: row.Employee[0].DunkinId[0],
+        firstName: row.Employee[0].FirstName[0],
+        lastName: row.Employee[0].LastName[0],
+        dob: row.Employee[0].DOB[0],
+        phone: row.Employee[0].PhoneNumber[0],
+      },
+      payor: {
+        dunkinId: row.Payor[0].DunkinId[0],
+        abarouting: row.Payor[0].ABARouting[0],
+        accountnumber: row.Payor[0].AccountNumber[0],
+        name: row.Payor[0].Name[0],
+        dba: row.Payor[0].DBA[0],
+        ein: row.Payor[0].EIN[0],
+        address: {
+          line1: row.Payor[0].Address[0].Line1[0],
+          city: row.Payor[0].Address[0].City[0],
+          state: row.Payor[0].Address[0].State[0],
+          zip: row.Payor[0].Address[0].Zip[0],
+        },
+      },
+      payee: {
+        plaidId: row.Payee[0].PlaidId[0],
+        loanaccountnumber: row.Payee[0].LoanAccountNumber[0],
+      },
+      amount: parseFloat(row.Amount[0].replace('$', '')) * 100, // convert to cents
     }));
     return payments;
   } else {
@@ -29,20 +59,22 @@ const processXMLData = (xmlData) => {
   }
 };
 
-// Updated XML upload endpoint
-app.post('/upload', upload.single('file'), (req, res) => {
+app.post('/upload', upload.single('file'), async (req, res) => {
   const xmlFile = req.file.path;
-  fs.readFile(xmlFile, 'utf8', (err, data) => {
+  fs.readFile(xmlFile, 'utf8', async (err, data) => {
     if (err) {
       return res.status(500).send('Error reading XML file');
     }
-    xml2js.parseString(data, (err, result) => {
+    xml2js.parseString(data, async (err, result) => {
       if (err) {
         return res.status(500).send('Error parsing XML file');
       }
       try {
         const payments = processXMLData(result);
-        res.send(payments);
+        const batch = new Batch({ payments, status: 'uploaded' });
+        await batch.save();
+        res.send({ batchId: batch._id, status: batch.status });
+        runWorker(); // Trigger the worker after upload
       } catch (error) {
         res.status(500).send(error.message);
       }
@@ -50,69 +82,48 @@ app.post('/upload', upload.single('file'), (req, res) => {
   });
 });
 
-const createPayment = async (payment) => {
-  // Replace with your Method API integration
-  const response = await axios.post('https://api.methodfi.com/payments', payment, {
-    headers: { Authorization: `sk_Mq9yE3xQtmajFfpeWc6Wz4JB` }
-  });
-  return response.data;
-};
-
-// Endpoint to create payments via Method API
-app.post('/create-payments', async (req, res) => {
-  const payments = req.body.payments;
-  const results = [];
-  for (const payment of payments) {
-    try {
-      const result = await createPayment(payment);
-      results.push(result);
-    } catch (error) {
-      results.push({ error: error.message });
+app.post('/approve-batch/:batchId', async (req, res) => {
+  const { batchId } = req.params;
+  try {
+    const batch = await Batch.findById(batchId);
+    if (!batch) {
+      return res.status(404).send('Batch not found');
     }
+    batch.approved = true;
+    await batch.save();
+    res.send(batch);
+    runWorker(); // Trigger the worker after approval
+  } catch (error) {
+    res.status(500).send(error.message);
   }
-  res.send(results);
 });
 
-const generateReport = (payments, type) => {
-  // Generate the CSV reports based on the type
-  let report = '';
-  switch (type) {
-    case 'source-account':
-      // Total amount of funds paid out per unique source account
-      report = payments.reduce((acc, payment) => {
-        const account = payment.payor.AccountNumber[0];
-        acc[account] = (acc[account] || 0) + parseFloat(payment.amount.replace('$', ''));
-        return acc;
-      }, {});
-      break;
-    case 'branch':
-      // Total amount of funds paid out per Dunkin branch
-      report = payments.reduce((acc, payment) => {
-        const branch = payment.employee.DunkinBranch[0];
-        acc[branch] = (acc[branch] || 0) + parseFloat(payment.amount.replace('$', ''));
-        return acc;
-      }, {});
-      break;
-    case 'status':
-      // Status of every payment and its relevant metadata
-      report = payments.map(payment => ({
-        employee: `${payment.employee.FirstName[0]} ${payment.employee.LastName[0]}`,
-        status: 'Pending',
-        metadata: payment
-      }));
-      break;
-    default:
-      report = {};
+app.get('/batches', async (req, res) => {
+  try {
+    const batches = await Batch.find().select('_id status approved');
+    res.send(batches);
+  } catch (error) {
+    res.status(500).send(error.message);
   }
-  return report;
-};
+});
 
-app.post('/generate-report', (req, res) => {
-  const { payments, type } = req.body;
-  const report = generateReport(payments, type);
-  res.send(report);
+app.get('/batch/:batchId', async (req, res) => {
+  const { batchId } = req.params;
+  try {
+    const batch = await Batch.findById(batchId);
+    if (!batch) {
+      return res.status(404).send('Batch not found');
+    }
+    res.send(batch);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
 });
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
+
+// Periodically run the worker process
+setInterval(runWorker, 60000); // Run every 60 seconds
+runWorker();
