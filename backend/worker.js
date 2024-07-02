@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const axios = require('axios');
 const moment = require('moment');
 const Bottleneck = require('bottleneck');
@@ -283,6 +282,11 @@ const preprocessBatch = async (batch) => {
   batch.paymentsTotal = paymentsTotal; // Save the total sum in the batch document
   await batch.save();
   console.log(`Batch ${batch._id} preprocessed`);
+
+  if (batch.approved && batch.status === 'pending') {
+    console.log(`Batch ${batch._id} has been approved during preprocessing. Running worker immediately.`);
+    runWorker();
+  }
 };
 
 const processPayments = async (batch) => {

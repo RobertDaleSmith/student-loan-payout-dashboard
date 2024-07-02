@@ -37,3 +37,5 @@ coverage/
 # Ignore all XML files except the sample data
 *.xml
 !data/dunkin.xml
+
+uploads/

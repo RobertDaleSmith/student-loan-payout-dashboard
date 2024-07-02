@@ -48,7 +48,13 @@ const BatchDetails = () => {
           params: { page, limit: 20 }
         });
         if (response.data.length > 0) {
-          setPayments(prev => [...prev, ...response.data]);
+          // Filter out duplicates by payment ID
+          setPayments(prev => {
+            const newPayments = response.data.filter(
+              newPayment => !prev.some(existingPayment => existingPayment._id === newPayment._id)
+            );
+            return [...prev, ...newPayments];
+          });
           setHasMore(response.data.length === 20);
         } else {
           setHasMore(false);
@@ -214,7 +220,7 @@ const BatchDetails = () => {
                   <TableCell>{`${payment.employee.firstName} ${payment.employee.lastName}`}</TableCell>
                   <TableCell>${(payment.amount / 100).toFixed(2)}</TableCell>
                   <TableCell>
-                    <Chip label={payment.status} color={payment.status === 'completed' ? 'success' : 'default'} />
+                    <Chip label={payment.status} color={payment.status === 'complete' ? 'success' : 'default'} />
                   </TableCell>
                   <TableCell>{dayjs(payment.createdAt).format('YYYY-MM-DD HH:mm:ss')}</TableCell>
                 </TableRow>
@@ -224,7 +230,7 @@ const BatchDetails = () => {
         </TableContainer>
       )}
       {hasMore && (
-        <div style={{float: "right", padding: "16px 0"}}>
+        <div style={{ float: 'right', padding: '16px 0' }}>
           <Button variant="contained" onClick={() => setPage(prev => prev + 1)}>
             Load More
           </Button>
