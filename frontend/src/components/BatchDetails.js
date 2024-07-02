@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   Table,
@@ -13,15 +13,19 @@ import {
   Box,
   Button,
   Chip,
-  IconButton
+  Alert,
+  Snackbar
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import dayjs from 'dayjs';
 
 const BatchDetails = () => {
   const { batchId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [batch, setBatch] = useState(null);
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
+  const [showSnackbar, setShowSnackbar] = useState(location.state?.showSnackbar || false);
 
   useEffect(() => {
     const fetchBatchDetails = async () => {
@@ -78,7 +82,7 @@ const BatchDetails = () => {
       case 'preprocessing':
         color = 'warning';
         break;
-      case 'pending':
+      case 'ready':
         color = 'info';
         break;
       case 'processing':
@@ -88,13 +92,16 @@ const BatchDetails = () => {
         color = 'success';
         break;
       case 'rejected':
-      case 'error':
         color = 'error';
         break;
       default:
         color = 'default';
     }
     return <Chip label={status} color={color} />;
+  };
+
+  const handleCloseSnackbar = () => {
+    setShowSnackbar(false);
   };
 
   if (error) {
@@ -108,7 +115,9 @@ const BatchDetails = () => {
   return (
     <div>
       <Box display="flex" justifyContent="space-between" alignItems="center" paddingTop="16px" mb={2}>
-        <Typography variant="h4">Batch Details</Typography>
+        <Box display="flex" alignItems="center">
+          <Typography variant="h4">Batch Details</Typography>
+        </Box>
         <Box>
           {!batch.approved && batch.status !== 'rejected' && (
             <>
@@ -116,7 +125,7 @@ const BatchDetails = () => {
                 variant="contained"
                 color="primary"
                 onClick={handleApproveBatch}
-                style={{ marginLeft: 8 }}
+                style={{ marginRight: 8 }}
               >
                 Approve
               </Button>
@@ -124,7 +133,7 @@ const BatchDetails = () => {
                 variant="contained"
                 color="error"
                 onClick={handleRejectBatch}
-                style={{ marginLeft: 8 }}
+                style={{ marginRight: 8 }}
               >
                 Reject
               </Button>
@@ -140,7 +149,7 @@ const BatchDetails = () => {
         <Typography variant="body1">Approved: {batch.approved ? 'Yes' : 'No'}</Typography>
         <Typography variant="body1">Created At: {dayjs(batch.createdAt).format('YYYY-MM-DD HH:mm:ss')}</Typography>
         <Typography variant="body1">Payments Count: {batch.paymentsCount}</Typography>
-        <Typography variant="body1">Payments Total: ${(batch.paymentsTotal / 100).toFixed(2)}</Typography>
+        <Typography variant="body1">Total Sum: ${(batch.paymentsTotal / 100).toFixed(2)}</Typography>
       </Box>
       <Box mb={2}>
         <Button
@@ -167,9 +176,6 @@ const BatchDetails = () => {
           Download Payments Status CSV
         </Button>
       </Box>
-      <Box mb={2}>
-        <Typography variant="h6">Payments</Typography>
-      </Box>
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -190,6 +196,16 @@ const BatchDetails = () => {
           </TableBody>
         </Table>
       </TableContainer>
+      <Snackbar
+        open={showSnackbar}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }} // Positioning the Snackbar
+      >
+        <Alert onClose={handleCloseSnackbar} severity="success" sx={{ width: '100%' }}>
+          Batch Uploaded Successfully
+        </Alert>
+      </Snackbar>
     </div>
   );
 };

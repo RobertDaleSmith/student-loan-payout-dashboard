@@ -97,7 +97,6 @@ const BatchList = ({ refresh, onUpload }) => {
         <Typography variant="h4">Batches</Typography>
         <Upload onUpload={onUpload} />
       </Box>
-      {error && <div style={{ color: 'red' }}>{error}</div>}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -159,6 +158,7 @@ const BatchList = ({ refresh, onUpload }) => {
           </TableBody>
         </Table>
       </TableContainer>
+      {error && <div style={{ color: 'red' }}>{error}</div>}
     </div>
   );
 };
