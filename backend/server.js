@@ -4,6 +4,8 @@ const multer = require('multer');
 const xml2js = require('xml2js');
 const cors = require('cors');
 const fs = require('fs');
+const dayjs = require('dayjs');
+const { createObjectCsvWriter } = require('csv-writer');
 const mongoose = require('mongoose');
 const { runWorker } = require('./worker');
 const Batch = require('./models/Batch');
@@ -132,6 +134,120 @@ app.post('/reject-batch/:batchId', async (req, res) => {
     batch.status = 'rejected';
     await batch.save();
     res.send(batch);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+// Endpoint to generate CSV for total amount of funds paid out per unique source account
+app.get('/batch/:batchId/csv/source-account', async (req, res) => {
+  const { batchId } = req.params;
+  try {
+    const batch = await Batch.findById(batchId);
+    if (!batch) {
+      return res.status(404).send('Batch not found');
+    }
+
+    const csvWriter = createObjectCsvWriter({
+      path: `batch_${batchId}_source_account.csv`,
+      header: [
+        { id: 'sourceAccount', title: 'Source Account' },
+        { id: 'totalAmount', title: 'Total Amount' }
+      ]
+    });
+
+    const sourceAccounts = {};
+    batch.payments.forEach(payment => {
+      const sourceAccount = payment.payor.accountnumber;
+      if (!sourceAccounts[sourceAccount]) {
+        sourceAccounts[sourceAccount] = 0;
+      }
+      sourceAccounts[sourceAccount] += payment.amount;
+    });
+
+    const records = Object.keys(sourceAccounts).map(account => ({
+      sourceAccount: account,
+      totalAmount: (sourceAccounts[account] / 100).toFixed(2)
+    }));
+
+    await csvWriter.writeRecords(records);
+
+    res.download(`batch_${batchId}_source_account.csv`);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+// Endpoint to generate CSV for total amount of funds paid out per Dunkin branch
+app.get('/batch/:batchId/csv/branch', async (req, res) => {
+  const { batchId } = req.params;
+  try {
+    const batch = await Batch.findById(batchId);
+    if (!batch) {
+      return res.status(404).send('Batch not found');
+    }
+
+    const csvWriter = createObjectCsvWriter({
+      path: `batch_${batchId}_branch.csv`,
+      header: [
+        { id: 'branch', title: 'Dunkin Branch' },
+        { id: 'totalAmount', title: 'Total Amount' }
+      ]
+    });
+
+    const branches = {};
+    batch.payments.forEach(payment => {
+      const branch = payment.employee.dunkinBranch;
+      if (!branches[branch]) {
+        branches[branch] = 0;
+      }
+      branches[branch] += payment.amount;
+    });
+
+    const records = Object.keys(branches).map(branch => ({
+      branch,
+      totalAmount: (branches[branch] / 100).toFixed(2)
+    }));
+
+    await csvWriter.writeRecords(records);
+
+    res.download(`batch_${batchId}_branch.csv`);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+// Endpoint to generate CSV for the status of every payment and its relevant metadata
+app.get('/batch/:batchId/csv/payments-status', async (req, res) => {
+  const { batchId } = req.params;
+  try {
+    const batch = await Batch.findById(batchId);
+    if (!batch) {
+      return res.status(404).send('Batch not found');
+    }
+
+    const csvWriter = createObjectCsvWriter({
+      path: `batch_${batchId}_payments_status.csv`,
+      header: [
+        { id: 'employee', title: 'Employee' },
+        { id: 'amount', title: 'Amount' },
+        { id: 'status', title: 'Status' },
+        { id: 'createdAt', title: 'Created At' },
+        { id: 'updatedAt', title: 'Updated At' }
+      ]
+    });
+
+    const records = batch.payments.map(payment => ({
+      employee: `${payment.employee.firstName} ${payment.employee.lastName}`,
+      amount: (payment.amount / 100).toFixed(2),
+      status: payment.status,
+      createdAt: dayjs(payment.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+      updatedAt: dayjs(payment.updatedAt).format('YYYY-MM-DD HH:mm:ss')
+    }));
+
+    await csvWriter.writeRecords(records);
+
+    res.download(`batch_${batchId}_payments_status.csv`);
   } catch (error) {
     res.status(500).send(error.message);
   }

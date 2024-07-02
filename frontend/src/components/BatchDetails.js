@@ -12,7 +12,8 @@ import {
   Typography,
   Box,
   Button,
-  Chip
+  Chip,
+  IconButton
 } from '@mui/material';
 import dayjs from 'dayjs';
 
@@ -52,6 +53,22 @@ const BatchDetails = () => {
     }
   };
 
+  const handleDownloadCsv = async (type) => {
+    try {
+      const response = await axios.get(`http://localhost:5001/batch/${batchId}/csv/${type}`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `batch_${batchId}_${type}.csv`);
+      document.body.appendChild(link);
+      link.click();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const getStatusChip = (status) => {
     let color;
     switch (status) {
@@ -71,6 +88,7 @@ const BatchDetails = () => {
         color = 'success';
         break;
       case 'rejected':
+      case 'error':
         color = 'error';
         break;
       default:
@@ -98,7 +116,7 @@ const BatchDetails = () => {
                 variant="contained"
                 color="primary"
                 onClick={handleApproveBatch}
-                style={{ marginRight: 8 }}
+                style={{ marginLeft: 8 }}
               >
                 Approve
               </Button>
@@ -106,7 +124,7 @@ const BatchDetails = () => {
                 variant="contained"
                 color="error"
                 onClick={handleRejectBatch}
-                style={{ marginRight: 8 }}
+                style={{ marginLeft: 8 }}
               >
                 Reject
               </Button>
@@ -118,10 +136,36 @@ const BatchDetails = () => {
         <Typography variant="h6">Batch Name: {batch.name}</Typography>
         <Typography variant="body1">Batch ID: {batch._id}</Typography>
         <Typography variant="body1">Status: {getStatusChip(batch.status)}</Typography>
+        <br />
         <Typography variant="body1">Approved: {batch.approved ? 'Yes' : 'No'}</Typography>
         <Typography variant="body1">Created At: {dayjs(batch.createdAt).format('YYYY-MM-DD HH:mm:ss')}</Typography>
         <Typography variant="body1">Payments Count: {batch.paymentsCount}</Typography>
         <Typography variant="body1">Payments Total: ${(batch.paymentsTotal / 100).toFixed(2)}</Typography>
+      </Box>
+      <Box mb={2}>
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={() => handleDownloadCsv('source-account')}
+          style={{ marginRight: 8 }}
+        >
+          Download Source Account CSV
+        </Button>
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={() => handleDownloadCsv('branch')}
+          style={{ marginRight: 8 }}
+        >
+          Download Branch CSV
+        </Button>
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={() => handleDownloadCsv('payments-status')}
+        >
+          Download Payments Status CSV
+        </Button>
       </Box>
       <TableContainer component={Paper}>
         <Table>
