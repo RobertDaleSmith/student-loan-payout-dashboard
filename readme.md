@@ -71,11 +71,11 @@ This project is a student loan payout dashboard for Dunkin Donuts' HR team. It a
 
 ### Dashboard
 
-![Dashboard Screenshot](path_to_dashboard_screenshot.png)
+![Dashboard Screenshot](screenshots/dashboard_screenshot.png)
 
 ### Batch Details
 
-![Batch Details Screenshot](path_to_batch_details_screenshot.png)
+![Batch Details Screenshot](screenshots/batch_details_screenshot.png)
 
 ## API Endpoints
 
