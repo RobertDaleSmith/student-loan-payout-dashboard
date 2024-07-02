@@ -16,28 +16,26 @@ const createMethodEntity = async (entityData) => {
 		});
 
     const {data: entity} = response;
-    console.log("entity!!");
-    console.log(entity);
     if (entity.type === 'individual') {
       // phone verification
-      if (entity.verification &&
-          entity.verification.phone &&
-          entity.verification.phone.verified == false &&
-          entity.verification.phone.methods &&
-          entity.verification.phone.methods.length > 0
-      ) {
-        await axios.post(`https://dev.methodfi.com/entities/${entity.id}/verification_sessions`, {
-          type: 'phone',
-          method: 'element',
-          element: {},
-        }, {
-          headers: {
-            'Method-Version': '2024-04-04',
-            Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        });
-      }
+      // if (entity.verification &&
+      //     entity.verification.phone &&
+      //     entity.verification.phone.verified == false &&
+      //     entity.verification.phone.methods &&
+      //     entity.verification.phone.methods.length > 0
+      // ) {
+      //   await axios.post(`https://dev.methodfi.com/entities/${entity.id}/verification_sessions`, {
+      //     type: 'phone',
+      //     method: 'element',
+      //     element: {},
+      //   }, {
+      //     headers: {
+      //       'Method-Version': '2024-04-04',
+      //       Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
+      //       'Content-Type': 'application/json',
+      //     },
+      //   });
+      // }
 
       // identity verification
       // if (entity.verification &&
@@ -130,6 +128,8 @@ const createMethodPayment = async (paymentData) => {
 };
 
 const preprocessBatch = async (batch) => {
+  let paymentsCount = 0;
+  let paymentsTotal = 0;
   for (const payment of batch.payments) {
     try {
       // Process employee entity
@@ -240,24 +240,26 @@ const preprocessBatch = async (batch) => {
       payment.payor.accountId = payorAccount.methodAccountId;
       payment.payee.methodEntityId = employeeEntity.methodEntityId;
       payment.payee.accountId = payeeAccount.methodAccountId;
-      payment.status = 'ready';
-      console.log("payment!!");
-      console.log(payment);
+      payment.status = 'pending';
+      paymentsCount++;
+      paymentsTotal += payment.amount;
     } catch (error) {
       payment.status = 'failed';
       payment.error = error.message;
       console.error(`Error processing payment: ${error.message}`);
     }
   }
-  batch.status = 'ready';
+  batch.status = 'pending';
   batch.updatedAt = new Date();
+  batch.paymentsCount = paymentsCount;
+  batch.paymentsTotal = paymentsTotal; // Save the total sum in the batch document
   await batch.save();
   console.log(`Batch ${batch._id} preprocessed`);
 };
 
 const processPayments = async (batch) => {
   for (const payment of batch.payments) {
-    if (payment.status === 'ready') {
+    if (payment.status === 'pending') {
       try {
         const paymentData = {
           amount: payment.amount,
@@ -265,8 +267,6 @@ const processPayments = async (batch) => {
           destination: payment.payee.accountId,
           description: 'Loan Pmt',
         };
-        console.log("paymentData!!");
-        console.log(paymentData);
         const response = await axios.post('https://dev.methodfi.com/payments', paymentData, {
           headers: {
             'Method-Version': '2024-04-04',
@@ -278,7 +278,7 @@ const processPayments = async (batch) => {
         payment.methodPaymentId = methodPaymentId;
         console.log(`Created payment: ${methodPaymentId}`);
 
-        payment.status = 'completed';
+        payment.status = 'complete';
       } catch (error) {
         console.error('Error creating Method payment:', error.response ? error.response.data : error.message);
         payment.status = 'failed';
@@ -286,7 +286,7 @@ const processPayments = async (batch) => {
       }
     }
   }
-  batch.status = 'completed';
+  batch.status = 'complete';
   batch.updatedAt = new Date();
   await batch.save();
   console.log(`Batch ${batch._id} processed`);
@@ -299,7 +299,7 @@ const runWorker = async () => {
     await pendingBatch.save();
     await preprocessBatch(pendingBatch);
   } else {
-    const readyBatch = await Batch.findOne({ status: 'ready', approved: true });
+    const readyBatch = await Batch.findOne({ status: 'pending', approved: true });
     if (readyBatch) {
       readyBatch.status = 'processing';
       await readyBatch.save();

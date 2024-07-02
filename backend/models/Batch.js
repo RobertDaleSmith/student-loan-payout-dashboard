@@ -38,11 +38,14 @@ const paymentSchema = new mongoose.Schema({
 });
 
 const batchSchema = new mongoose.Schema({
+  name: { type: String, required: true },
   payments: [paymentSchema],
   status: { type: String, default: 'uploaded' },
   approved: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
+  paymentsCount: { type: Number, default: 0 },
+  paymentsTotal: { type: Number, default: 0 },
 });
 
 const Batch = mongoose.model('Batch', batchSchema);

@@ -61,6 +61,8 @@ const processXMLData = (xmlData) => {
 
 app.post('/upload', upload.single('file'), async (req, res) => {
   const xmlFile = req.file.path;
+  const batchName = req.file.originalname;
+
   fs.readFile(xmlFile, 'utf8', async (err, data) => {
     if (err) {
       return res.status(500).send('Error reading XML file');
@@ -71,7 +73,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       }
       try {
         const payments = processXMLData(result);
-        const batch = new Batch({ payments, status: 'uploaded' });
+        const batch = new Batch({ name: batchName, payments, status: 'uploaded' });
         await batch.save();
         res.send({ batchId: batch._id, status: batch.status });
         runWorker(); // Trigger the worker after upload
@@ -100,7 +102,7 @@ app.post('/approve-batch/:batchId', async (req, res) => {
 
 app.get('/batches', async (req, res) => {
   try {
-    const batches = await Batch.find().select('_id status approved');
+    const batches = await Batch.find().sort({ createdAt: -1 }).select('_id name status approved createdAt paymentsCount paymentsTotal');
     res.send(batches);
   } catch (error) {
     res.status(500).send(error.message);
@@ -114,6 +116,21 @@ app.get('/batch/:batchId', async (req, res) => {
     if (!batch) {
       return res.status(404).send('Batch not found');
     }
+    res.send(batch);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+app.post('/reject-batch/:batchId', async (req, res) => {
+  const { batchId } = req.params;
+  try {
+    const batch = await Batch.findById(batchId);
+    if (!batch) {
+      return res.status(404).send('Batch not found');
+    }
+    batch.status = 'rejected';
+    await batch.save();
     res.send(batch);
   } catch (error) {
     res.status(500).send(error.message);
