@@ -1,22 +1,34 @@
 const mongoose = require('mongoose');
 const axios = require('axios');
 const moment = require('moment');
+const Bottleneck = require('bottleneck');
 const Batch = require('./models/Batch');
 const Entity = require('./models/Entity');
 const Account = require('./models/Account');
 
+// Initialize Bottleneck with a rate limit of 600 requests per minute
+const limiter = new Bottleneck({
+  maxConcurrent: 1, // Ensure only one request at a time
+  minTime: 100, // Minimum time between requests (1000ms / 600 requests = ~1.67ms, but setting to 100ms for safety)
+});
+
 const createMethodEntity = async (entityData) => {
 	try {
-    const {data: response} = await axios.post('https://dev.methodfi.com/entities', entityData, {
-			headers: {
-        'Method-Version': '2024-04-04',
-				Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-				'Content-Type': 'application/json',
-			},
-		});
+    const {data: response} = await limiter.schedule(() =>
+      axios.post('https://dev.methodfi.com/entities', entityData, {
+        headers: {
+          'Method-Version': '2024-04-04',
+          Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      })
+    );
 
     const {data: entity} = response;
     if (entity.type === 'individual') {
+      // Attempted phone and identity verification but 'element' is the only method available
+      // to my entities and is not longer allowed by the API.
+      //
       // phone verification
       // if (entity.verification &&
       //     entity.verification.phone &&
@@ -69,7 +81,7 @@ const createMethodEntity = async (entityData) => {
 
 const createMethodAccount = async (account, entityId) => {
   try {
-    const data = account.type === 'ach' ? {
+    const accountData = account.type === 'ach' ? {
       holder_id: entityId,
       ach: {
         routing: account.ach.routing,
@@ -85,23 +97,27 @@ const createMethodAccount = async (account, entityId) => {
       },
     };
 
-    const {data: response} = await axios.post('https://dev.methodfi.com/accounts', data, {
-      headers: {
-        'Method-Version': '2024-04-04',
-        Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // auto verify accounts to enable payment:sending capabilities
-    if (account.type === 'ach') {
-      await axios.post(`https://dev.methodfi.com/accounts/${response.data.id}/verification_sessions`, {type: 'auto_verify'}, {
+    const {data: response} = await limiter.schedule(() =>
+      axios.post('https://dev.methodfi.com/accounts', accountData, {
         headers: {
           'Method-Version': '2024-04-04',
           Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
           'Content-Type': 'application/json',
         },
-      });
+      })
+    );
+
+    // auto verify accounts to enable payment:sending capabilities
+    if (account.type === 'ach') {
+      const {data: response} = await limiter.schedule(() =>
+        axios.post(`https://dev.methodfi.com/accounts/${response.data.id}/verification_sessions`, {type: 'auto_verify'}, {
+          headers: {
+            'Method-Version': '2024-04-04',
+            Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        })
+      );
     }
 
     return response.data.id;
@@ -113,13 +129,16 @@ const createMethodAccount = async (account, entityId) => {
 
 const createMethodPayment = async (paymentData) => {
   try {
-    const {data: response} = await axios.post('https://dev.methodfi.com/payments', paymentData, {
-      headers: {
-        'Method-Version': '2024-04-04',
-        Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    const {data: response} = await limiter.schedule(() =>
+      axios.post('https://dev.methodfi.com/payments', paymentData, {
+        headers: {
+          'Method-Version': '2024-04-04',
+          Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      })
+    );
+
     return response.data.id;
   } catch (error) {
     console.error('Error creating Method payment:', error.response ? error.response.data : error.message);

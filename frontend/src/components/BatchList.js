@@ -52,7 +52,7 @@ const BatchList = ({ refresh, onUpload }) => {
       await axios.post(`http://localhost:5001/reject-batch/${batchId}`);
       setBatches((prevBatches) =>
         prevBatches.map((batch) =>
-          batch._id === batchId ? { ...batch, status: 'rejected' } : batch
+          batch._id === batchId ? { ...batch, status: 'discarded' } : batch
         )
       );
     } catch (err) {
@@ -82,7 +82,7 @@ const BatchList = ({ refresh, onUpload }) => {
       case 'complete':
         color = 'success';
         break;
-      case 'rejected':
+      case 'discarded':
         color = 'error';
         break;  
       default:
@@ -97,6 +97,12 @@ const BatchList = ({ refresh, onUpload }) => {
         <Typography variant="h4">Batches</Typography>
         <Upload onUpload={onUpload} />
       </Box>
+      {batches.length === 0 ? (
+        <Typography variant="body1">
+          <br />
+          Welcome! Please upload a payments XML batch file to begin processing payments.
+        </Typography>
+      ) : (
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -125,7 +131,7 @@ const BatchList = ({ refresh, onUpload }) => {
                 <TableCell>{batch.paymentsCount}</TableCell>
                 <TableCell>${(batch.paymentsTotal / 100).toFixed(2)}</TableCell>
                 <TableCell style={{textAlign: 'right'}}>
-                  {!batch.approved && batch.status !== 'rejected' && (
+                  {!batch.approved && batch.status !== 'discarded' && (
                     <>
                       <Button
                         variant="contained"
@@ -133,7 +139,7 @@ const BatchList = ({ refresh, onUpload }) => {
                         onClick={() => handleApproveBatch(batch._id)}
                         style={{ marginRight: 8 }}
                       >
-                        Approve
+                        Authorize
                       </Button>
                       <Button
                         variant="contained"
@@ -141,7 +147,7 @@ const BatchList = ({ refresh, onUpload }) => {
                         onClick={() => handleRejectBatch(batch._id)}
                         style={{ marginRight: 8 }}
                       >
-                        Reject
+                        Discard
                       </Button>
                     </>
                   )}
@@ -158,6 +164,7 @@ const BatchList = ({ refresh, onUpload }) => {
           </TableBody>
         </Table>
       </TableContainer>
+      )}
       {error && <div style={{ color: 'red' }}>{error}</div>}
     </div>
   );

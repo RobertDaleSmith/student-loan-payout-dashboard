@@ -132,7 +132,7 @@ app.post('/reject-batch/:batchId', async (req, res) => {
     if (!batch) {
       return res.status(404).send('Batch not found');
     }
-    batch.status = 'rejected';
+    batch.status = 'discarded';
     await batch.save();
     res.send(batch);
   } catch (error) {

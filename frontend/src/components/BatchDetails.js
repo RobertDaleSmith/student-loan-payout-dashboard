@@ -82,7 +82,7 @@ const BatchDetails = () => {
       case 'preprocessing':
         color = 'warning';
         break;
-      case 'ready':
+      case 'pending':
         color = 'info';
         break;
       case 'processing':
@@ -91,7 +91,7 @@ const BatchDetails = () => {
       case 'complete':
         color = 'success';
         break;
-      case 'rejected':
+      case 'discarded':
         color = 'error';
         break;
       default:
@@ -119,7 +119,7 @@ const BatchDetails = () => {
           <Typography variant="h4">Batch Details</Typography>
         </Box>
         <Box>
-          {!batch.approved && batch.status !== 'rejected' && (
+          {!batch.approved && batch.status !== 'discarded' && (
             <>
               <Button
                 variant="contained"
@@ -127,7 +127,7 @@ const BatchDetails = () => {
                 onClick={handleApproveBatch}
                 style={{ marginRight: 8 }}
               >
-                Approve
+                Authorize
               </Button>
               <Button
                 variant="contained"
@@ -135,7 +135,7 @@ const BatchDetails = () => {
                 onClick={handleRejectBatch}
                 style={{ marginRight: 8 }}
               >
-                Reject
+                Discard
               </Button>
             </>
           )}
