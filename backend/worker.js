@@ -109,8 +109,6 @@ const createMethodAccount = async (account, entityId) => {
 
     // auto verify accounts to enable payment:sending capabilities
     if (account.type === 'ach') {
-      console.log("verify!!");
-      console.log(response.data.id);
       await limiter.schedule(() =>
         axios.post(`https://dev.methodfi.com/accounts/${response.data.id}/verification_sessions`, {type: 'auto_verify'}, {
           headers: {
