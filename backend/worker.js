@@ -5,6 +5,7 @@ const Bottleneck = require('bottleneck');
 const Batch = require('./models/Batch');
 const Entity = require('./models/Entity');
 const Account = require('./models/Account');
+const Payment = require('./models/Payment');
 
 // Initialize Bottleneck with a rate limit of 600 requests per minute
 const limiter = new Bottleneck({
@@ -109,7 +110,9 @@ const createMethodAccount = async (account, entityId) => {
 
     // auto verify accounts to enable payment:sending capabilities
     if (account.type === 'ach') {
-      const {data: response} = await limiter.schedule(() =>
+      console.log("verify!!");
+      console.log(response.data.id);
+      await limiter.schedule(() =>
         axios.post(`https://dev.methodfi.com/accounts/${response.data.id}/verification_sessions`, {type: 'auto_verify'}, {
           headers: {
             'Method-Version': '2024-04-04',
@@ -147,9 +150,11 @@ const createMethodPayment = async (paymentData) => {
 };
 
 const preprocessBatch = async (batch) => {
+  const payments = await Payment.find({ batchId: batch._id });
   let paymentsCount = 0;
   let paymentsTotal = 0;
-  for (const payment of batch.payments) {
+
+  for (const payment of payments) {
     try {
       // Process employee entity
       let employeeEntity = await Entity.findOne({ dunkinId: payment.employee.dunkinId });
@@ -159,7 +164,7 @@ const preprocessBatch = async (batch) => {
           individual: {
             first_name: payment.employee.firstName,
             last_name: payment.employee.lastName,
-						phone: '+15121231111' /* capabilities */ || payment.employee.phone,
+            phone: '+15121231111', // capabilities phone number
             dob: moment(payment.employee.dob, ['MM-DD-YYYY', 'DD-MM-YYYY', 'YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY/MM/DD'], true).format('YYYY-MM-DD'),
           },
         };
@@ -186,7 +191,7 @@ const preprocessBatch = async (batch) => {
             ein: payment.payor.ein,
             owners: [], // Important: pass an empty array for the `owners` key
           },
-          address: {
+          address: { // adds dummy address to allow source account to be able to send payments
             line1: "3300 N Interstate 35",
             line2: null,
             city: "Austin",
@@ -227,7 +232,7 @@ const preprocessBatch = async (batch) => {
         });
         payorAccount.methodAccountId = await createMethodAccount(payorAccount, payorEntity.methodEntityId);
         await payorAccount.save();
-        // console.log(`Created payor account: ${payorAccount}`);
+        console.log(`Created payor account: ${payorAccount}`);
       }
 
       // Process payee account
@@ -261,11 +266,14 @@ const preprocessBatch = async (batch) => {
       payment.payee.methodEntityId = employeeEntity.methodEntityId;
       payment.payee.accountId = payeeAccount.methodAccountId;
       payment.status = 'pending';
+      await payment.save();
+
       paymentsCount++;
       paymentsTotal += payment.amount;
     } catch (error) {
       payment.status = 'failed';
       payment.error = error.message;
+      await payment.save();
       console.error(`Error processing payment: ${error.message}`);
     }
   }
@@ -278,7 +286,9 @@ const preprocessBatch = async (batch) => {
 };
 
 const processPayments = async (batch) => {
-  for (const payment of batch.payments) {
+  const payments = await Payment.find({ batchId: batch._id, status: 'pending' });
+
+  for (const payment of payments) {
     if (payment.status === 'pending') {
       try {
         const paymentData = {
@@ -296,13 +306,14 @@ const processPayments = async (batch) => {
         });
         const methodPaymentId = await createMethodPayment(paymentData);
         payment.methodPaymentId = methodPaymentId;
-        console.log(`Created payment: ${methodPaymentId}`);
-
         payment.status = 'complete';
+        await payment.save();
+        console.log(`Created payment: ${methodPaymentId}`);
       } catch (error) {
         console.error('Error creating Method payment:', error.response ? error.response.data : error.message);
         payment.status = 'failed';
         payment.error = error.message;
+        await payment.save();
       }
     }
   }

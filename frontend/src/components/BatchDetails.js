@@ -21,11 +21,13 @@ import dayjs from 'dayjs';
 
 const BatchDetails = () => {
   const { batchId } = useParams();
-  const navigate = useNavigate();
   const location = useLocation();
   const [batch, setBatch] = useState(null);
+  const [payments, setPayments] = useState([]);
   const [error, setError] = useState(null);
   const [showSnackbar, setShowSnackbar] = useState(location.state?.showSnackbar || false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     const fetchBatchDetails = async () => {
@@ -38,6 +40,25 @@ const BatchDetails = () => {
     };
     fetchBatchDetails();
   }, [batchId]);
+
+  useEffect(() => {
+    const fetchPayments = async () => {
+      try {
+        const response = await axios.get(`http://localhost:5001/batch/${batchId}/payments`, {
+          params: { page, limit: 20 }
+        });
+        if (response.data.length > 0) {
+          setPayments(prev => [...prev, ...response.data]);
+          setHasMore(response.data.length === 20);
+        } else {
+          setHasMore(false);
+        }
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+    fetchPayments();
+  }, [batchId, page]);
 
   const handleApproveBatch = async () => {
     try {
@@ -176,26 +197,39 @@ const BatchDetails = () => {
           Download Payments Status CSV
         </Button>
       </Box>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Employee</TableCell>
-              <TableCell>Amount</TableCell>
-              <TableCell>Status</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {batch.payments.map((payment) => (
-              <TableRow key={payment._id}>
-                <TableCell>{payment.employee.firstName} {payment.employee.lastName}</TableCell>
-                <TableCell>${(payment.amount / 100).toFixed(2)}</TableCell>
-                <TableCell>{payment.status}</TableCell>
+      {payments.length > 0 && (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Employee</TableCell>
+                <TableCell>Amount</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Created At</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {payments.map(payment => (
+                <TableRow key={payment._id}>
+                  <TableCell>{`${payment.employee.firstName} ${payment.employee.lastName}`}</TableCell>
+                  <TableCell>${(payment.amount / 100).toFixed(2)}</TableCell>
+                  <TableCell>
+                    <Chip label={payment.status} color={payment.status === 'completed' ? 'success' : 'default'} />
+                  </TableCell>
+                  <TableCell>{dayjs(payment.createdAt).format('YYYY-MM-DD HH:mm:ss')}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+      {hasMore && (
+        <div style={{float: "right", padding: "16px 0"}}>
+          <Button variant="contained" onClick={() => setPage(prev => prev + 1)}>
+            Load More
+          </Button>
+        </div>
+      )}
       <Snackbar
         open={showSnackbar}
         autoHideDuration={6000}

@@ -9,6 +9,7 @@ const { createObjectCsvStringifier } = require('csv-writer');
 const mongoose = require('mongoose');
 const { runWorker } = require('./worker');
 const Batch = require('./models/Batch');
+const Payment = require('./models/Payment');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -23,11 +24,12 @@ mongoose.connect('mongodb://localhost:27017/studentLoanPayoutsDB')
   });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '60mb' })); // Increase the limit here
 
-const processXMLData = (xmlData) => {
+const processXMLData = (xmlData, batchId) => {
   if (xmlData && xmlData.root && xmlData.root.row) {
     const payments = xmlData.root.row.map(row => ({
+      batchId,
       employee: {
         dunkinId: row.Employee[0].DunkinId[0],
         dunkinBranch: row.Employee[0].DunkinBranch[0],
@@ -64,26 +66,44 @@ const processXMLData = (xmlData) => {
 
 app.post('/upload', upload.single('file'), async (req, res) => {
   const xmlFile = req.file.path;
-  const batchName = req.file.originalname;
 
-  fs.readFile(xmlFile, 'utf8', async (err, data) => {
-    if (err) {
-      return res.status(500).send('Error reading XML file');
-    }
-    xml2js.parseString(data, async (err, result) => {
+  const parser = new xml2js.Parser();
+
+  const readStream = fs.createReadStream(xmlFile);
+  const chunks = [];
+
+  readStream.on('data', chunk => {
+    chunks.push(chunk);
+  });
+
+  readStream.on('end', async () => {
+    const data = Buffer.concat(chunks).toString();
+    parser.parseString(data, async (err, result) => {
       if (err) {
         return res.status(500).send('Error parsing XML file');
       }
       try {
-        const payments = processXMLData(result);
-        const batch = new Batch({ name: batchName, payments, status: 'uploaded' });
+        const batch = new Batch({ name: req.file.originalname });
         await batch.save();
+
+        const payments = processXMLData(result, batch._id);
+
+        await Payment.insertMany(payments);
+
+        batch.paymentsCount = payments.length;
+        batch.paymentsTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
+        await batch.save();
+
         res.send({ batchId: batch._id, status: batch.status });
         runWorker(); // Trigger the worker after upload
       } catch (error) {
         res.status(500).send(error.message);
       }
     });
+  });
+
+  readStream.on('error', err => {
+    return res.status(500).send('Error reading XML file');
   });
 });
 
@@ -140,7 +160,19 @@ app.post('/reject-batch/:batchId', async (req, res) => {
   }
 });
 
-// Endpoint to generate CSV for total amount of funds paid out per unique source account
+app.get('/batch/:batchId/payments', async (req, res) => {
+  const { batchId } = req.params;
+  const { page = 1, limit = 20 } = req.query;
+  const skip = (page - 1) * limit;
+  try {
+    const payments = await Payment.find({ batchId }).skip(skip).limit(Number(limit));
+    res.send(payments);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+// Endpoint to generate CSV report for total amount paid out per unique source account
 app.get('/batch/:batchId/csv/source-account', async (req, res) => {
   const { batchId } = req.params;
   try {
@@ -148,6 +180,8 @@ app.get('/batch/:batchId/csv/source-account', async (req, res) => {
     if (!batch) {
       return res.status(404).send('Batch not found');
     }
+
+    const payments = await Payment.find({ batchId });
 
     const csvStringifier = createObjectCsvStringifier({
       header: [
@@ -157,7 +191,7 @@ app.get('/batch/:batchId/csv/source-account', async (req, res) => {
     });
 
     const sourceAccounts = {};
-    batch.payments.forEach(payment => {
+    payments.forEach(payment => {
       const sourceAccount = payment.payor.accountnumber;
       if (!sourceAccounts[sourceAccount]) {
         sourceAccounts[sourceAccount] = 0;
@@ -188,15 +222,17 @@ app.get('/batch/:batchId/csv/branch', async (req, res) => {
       return res.status(404).send('Batch not found');
     }
 
+    const payments = await Payment.find({ batchId });
+
     const csvStringifier = createObjectCsvStringifier({
       header: [
-        { id: 'branch', title: 'Dunkin Branch' },
+        { id: 'dunkinBranch', title: 'Dunkin Branch' },
         { id: 'totalAmount', title: 'Total Amount' }
       ]
     });
 
     const branches = {};
-    batch.payments.forEach(payment => {
+    payments.forEach(payment => {
       const branch = payment.employee.dunkinBranch;
       if (!branches[branch]) {
         branches[branch] = 0;
@@ -205,7 +241,7 @@ app.get('/batch/:batchId/csv/branch', async (req, res) => {
     });
 
     const records = Object.keys(branches).map(branch => ({
-      branch,
+      dunkinBranch: branch,
       totalAmount: (branches[branch] / 100).toFixed(2)
     }));
 
@@ -218,6 +254,7 @@ app.get('/batch/:batchId/csv/branch', async (req, res) => {
   }
 });
 
+
 // Endpoint to generate CSV for the status of every payment and its relevant metadata
 app.get('/batch/:batchId/csv/payments-status', async (req, res) => {
   const { batchId } = req.params;
@@ -226,6 +263,8 @@ app.get('/batch/:batchId/csv/payments-status', async (req, res) => {
     if (!batch) {
       return res.status(404).send('Batch not found');
     }
+
+    const payments = await Payment.find({ batchId });
 
     const csvStringifier = createObjectCsvStringifier({
       header: [
@@ -257,7 +296,7 @@ app.get('/batch/:batchId/csv/payments-status', async (req, res) => {
       ]
     });
 
-    const records = batch.payments.map(payment => ({
+    const records = payments.map(payment => ({
       employeePhone: payment.employee.phone,
       employeeDunkinId: payment.employee.dunkinId,
       employeeFirstName: payment.employee.firstName,
