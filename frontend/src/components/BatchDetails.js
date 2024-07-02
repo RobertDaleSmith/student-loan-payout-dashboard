@@ -167,6 +167,9 @@ const BatchDetails = () => {
           Download Payments Status CSV
         </Button>
       </Box>
+      <Box mb={2}>
+        <Typography variant="h6">Payments</Typography>
+      </Box>
       <TableContainer component={Paper}>
         <Table>
           <TableHead>

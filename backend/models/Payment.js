@@ -5,6 +5,7 @@ const paymentSchema = new mongoose.Schema({
   batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Batch', required: true },
   employee: {
     dunkinId: String,
+    dunkinBranch: String,
     firstName: String,
     lastName: String,
     dob: String,

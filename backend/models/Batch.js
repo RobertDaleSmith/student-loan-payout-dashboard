@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const paymentSchema = new mongoose.Schema({
   employee: {
     dunkinId: String,
+    dunkinBranch: String,
     firstName: String,
     lastName: String,
     dob: String,

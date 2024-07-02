@@ -5,7 +5,7 @@ const xml2js = require('xml2js');
 const cors = require('cors');
 const fs = require('fs');
 const dayjs = require('dayjs');
-const { createObjectCsvWriter } = require('csv-writer');
+const { createObjectCsvStringifier } = require('csv-writer');
 const mongoose = require('mongoose');
 const { runWorker } = require('./worker');
 const Batch = require('./models/Batch');
@@ -30,6 +30,7 @@ const processXMLData = (xmlData) => {
     const payments = xmlData.root.row.map(row => ({
       employee: {
         dunkinId: row.Employee[0].DunkinId[0],
+        dunkinBranch: row.Employee[0].DunkinBranch[0],
         firstName: row.Employee[0].FirstName[0],
         lastName: row.Employee[0].LastName[0],
         dob: row.Employee[0].DOB[0],
@@ -148,8 +149,7 @@ app.get('/batch/:batchId/csv/source-account', async (req, res) => {
       return res.status(404).send('Batch not found');
     }
 
-    const csvWriter = createObjectCsvWriter({
-      path: `batch_${batchId}_source_account.csv`,
+    const csvStringifier = createObjectCsvStringifier({
       header: [
         { id: 'sourceAccount', title: 'Source Account' },
         { id: 'totalAmount', title: 'Total Amount' }
@@ -170,9 +170,10 @@ app.get('/batch/:batchId/csv/source-account', async (req, res) => {
       totalAmount: (sourceAccounts[account] / 100).toFixed(2)
     }));
 
-    await csvWriter.writeRecords(records);
-
-    res.download(`batch_${batchId}_source_account.csv`);
+    const csvData = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(records);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="batch_${batchId}_source_account.csv"`);
+    res.send(csvData);
   } catch (error) {
     res.status(500).send(error.message);
   }
@@ -187,8 +188,7 @@ app.get('/batch/:batchId/csv/branch', async (req, res) => {
       return res.status(404).send('Batch not found');
     }
 
-    const csvWriter = createObjectCsvWriter({
-      path: `batch_${batchId}_branch.csv`,
+    const csvStringifier = createObjectCsvStringifier({
       header: [
         { id: 'branch', title: 'Dunkin Branch' },
         { id: 'totalAmount', title: 'Total Amount' }
@@ -209,9 +209,10 @@ app.get('/batch/:batchId/csv/branch', async (req, res) => {
       totalAmount: (branches[branch] / 100).toFixed(2)
     }));
 
-    await csvWriter.writeRecords(records);
-
-    res.download(`batch_${batchId}_branch.csv`);
+    const csvData = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(records);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="batch_${batchId}_branch.csv"`);
+    res.send(csvData);
   } catch (error) {
     res.status(500).send(error.message);
   }
@@ -226,32 +227,73 @@ app.get('/batch/:batchId/csv/payments-status', async (req, res) => {
       return res.status(404).send('Batch not found');
     }
 
-    const csvWriter = createObjectCsvWriter({
-      path: `batch_${batchId}_payments_status.csv`,
+    const csvStringifier = createObjectCsvStringifier({
       header: [
-        { id: 'employee', title: 'Employee' },
+        { id: 'employeePhone', title: 'Employee Phone' },
+        { id: 'employeeDunkinId', title: 'Employee DunkinId' },
+        { id: 'employeeFirstName', title: 'Employee FirstName' },
+        { id: 'employeeLastName', title: 'Employee LastName' },
+        { id: 'employeeDOB', title: 'Employee DOB' },
+        { id: 'payeeAccountId', title: 'Payee AccountId' },
+        { id: 'payeePlaidId', title: 'Payee PlaidId' },
+        { id: 'payeeMethodEntityId', title: 'Payee MethodEntityId' },
+        { id: 'payeeLoanAccountNumber', title: 'Payee LoanAccountNumber' },
+        { id: 'payorEIN', title: 'Payor EIN' },
+        { id: 'payorAccountId', title: 'Payor AccountId' },
+        { id: 'payorABARouting', title: 'Payor ABARouting' },
+        { id: 'payorDBA', title: 'Payor DBA' },
+        { id: 'payorMethodEntityId', title: 'Payor MethodEntityId' },
+        { id: 'payorDunkinId', title: 'Payor DunkinId' },
+        { id: 'payorName', title: 'Payor Name' },
+        { id: 'payorAddressLine1', title: 'Payor Address Line1' },
+        { id: 'payorAddressCity', title: 'Payor Address City' },
+        { id: 'payorAddressState', title: 'Payor Address State' },
+        { id: 'payorAddressZip', title: 'Payor Address Zip' },
         { id: 'amount', title: 'Amount' },
         { id: 'status', title: 'Status' },
+        { id: 'error', title: 'Error' },
         { id: 'createdAt', title: 'Created At' },
         { id: 'updatedAt', title: 'Updated At' }
       ]
     });
 
     const records = batch.payments.map(payment => ({
-      employee: `${payment.employee.firstName} ${payment.employee.lastName}`,
+      employeePhone: payment.employee.phone,
+      employeeDunkinId: payment.employee.dunkinId,
+      employeeFirstName: payment.employee.firstName,
+      employeeLastName: payment.employee.lastName,
+      employeeDOB: payment.employee.dob,
+      payeeAccountId: payment.payee.accountId,
+      payeePlaidId: payment.payee.plaidId,
+      payeeMethodEntityId: payment.payee.methodEntityId,
+      payeeLoanAccountNumber: payment.payee.loanaccountnumber,
+      payorEIN: payment.payor.ein,
+      payorAccountId: payment.payor.accountId,
+      payorABARouting: payment.payor.abarouting,
+      payorDBA: payment.payor.dba,
+      payorMethodEntityId: payment.payor.methodEntityId,
+      payorDunkinId: payment.payor.dunkinId,
+      payorName: payment.payor.name,
+      payorAddressLine1: payment.payor.address.line1,
+      payorAddressCity: payment.payor.address.city,
+      payorAddressState: payment.payor.address.state,
+      payorAddressZip: payment.payor.address.zip,
       amount: (payment.amount / 100).toFixed(2),
       status: payment.status,
+      error: payment.error || '',
       createdAt: dayjs(payment.createdAt).format('YYYY-MM-DD HH:mm:ss'),
       updatedAt: dayjs(payment.updatedAt).format('YYYY-MM-DD HH:mm:ss')
     }));
 
-    await csvWriter.writeRecords(records);
-
-    res.download(`batch_${batchId}_payments_status.csv`);
+    const csvData = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(records);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="batch_${batchId}_payments_status.csv"`);
+    res.send(csvData);
   } catch (error) {
     res.status(500).send(error.message);
   }
 });
+
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);

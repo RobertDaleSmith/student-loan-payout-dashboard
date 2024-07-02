@@ -147,6 +147,7 @@ const preprocessBatch = async (batch) => {
         const methodEntityId = await createMethodEntity(employeeData);
         employeeEntity = new Entity({
           dunkinId: payment.employee.dunkinId,
+          dunkinBranch: payment.employee.dunkinBranch,
           type: 'individual',
           individual: employeeData.individual,
           methodEntityId,
