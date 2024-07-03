@@ -16,7 +16,6 @@ const upload = multer({ dest: 'uploads/' });
 const port = process.env.PORT || 5001;
 
 mongoose.connect(process.env.MONGO_URL, {
-  useUnifiedTopology: true,
   serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
 }).then(() => {
     console.log('Connected to MongoDB');

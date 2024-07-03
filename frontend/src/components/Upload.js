@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { CircularProgress, Snackbar, Alert } from '@mui/material';
 
@@ -10,6 +11,7 @@ const Upload = ({ onUpload }) => {
   const navigate = useNavigate();
 
   const handleUpload = async (event) => {
+    const fileInput = event.target;
     const file = event.target.files[0];
     const formData = new FormData();
     formData.append('file', file);
@@ -24,7 +26,7 @@ const Upload = ({ onUpload }) => {
       });
       setError(null);
       onUpload(response.data); // Notify parent component of new batch
-      event.target.value = ''; // Clear the file input
+      fileInput.value = ''; // Clear the file input
       navigate(`/batch/${response.data.batchId}`, { state: { showSnackbar: true } }); // Navigate to the new batch's detail view with state
     } catch (err) {
       setError(err.message);
@@ -49,7 +51,24 @@ const Upload = ({ onUpload }) => {
         style={{ display: 'none' }}
         id="upload-button"
       />
-      <label htmlFor="upload-button" style={{ cursor: 'pointer', color: 'white', backgroundColor: 'green', padding: '10px', borderRadius: '5px', textAlign: 'center', display: 'inline-block', width: '120px', position: 'relative', opacity: loading ? 0.6 : 1, pointerEvents: loading ? 'none' : 'auto' }}>
+      <label
+        htmlFor="upload-button"
+        style={
+          {
+            cursor: 'pointer',
+            color: 'white',
+            backgroundColor: 'green',
+            padding: '10px',
+            borderRadius: '5px',
+            textAlign: 'center',
+            display: 'inline-block',
+            width: '120px',
+            position: 'relative',
+            opacity: loading ? 0.6 : 1,
+            pointerEvents: loading ? 'none' : 'auto',
+          }
+        }
+      >
         {loading ? <CircularProgress size={24} style={{ color: 'white' }} /> : 'Upload XML'}
       </label>
       <Snackbar
@@ -64,6 +83,10 @@ const Upload = ({ onUpload }) => {
       </Snackbar>
     </div>
   );
+};
+
+Upload.propTypes = {
+  onUpload: PropTypes.func.isRequired,
 };
 
 export default Upload;

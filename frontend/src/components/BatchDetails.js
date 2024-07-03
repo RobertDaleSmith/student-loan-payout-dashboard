@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import {
   Table,
@@ -14,9 +14,8 @@ import {
   Button,
   Chip,
   Alert,
-  Snackbar
+  Snackbar,
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import dayjs from 'dayjs';
 
 const BatchDetails = () => {
@@ -45,13 +44,16 @@ const BatchDetails = () => {
     const fetchPayments = async () => {
       try {
         const response = await axios.get(`http://localhost:5001/batch/${batchId}/payments`, {
-          params: { page, limit: 20 }
+          params: { page, limit: 20 },
         });
         if (response.data.length > 0) {
           // Filter out duplicates by payment ID
-          setPayments(prev => {
+
+          setPayments((prev) => {
             const newPayments = response.data.filter(
-              newPayment => !prev.some(existingPayment => existingPayment._id === newPayment._id)
+              (newPayment) => !prev.some(
+                (existingPayment) => existingPayment._id === newPayment._id,
+              ),
             );
             return [...prev, ...newPayments];
           });
@@ -215,7 +217,7 @@ const BatchDetails = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {payments.map(payment => (
+              {payments.map((payment) => (
                 <TableRow key={payment._id}>
                   <TableCell>{`${payment.employee.firstName} ${payment.employee.lastName}`}</TableCell>
                   <TableCell>${(payment.amount / 100).toFixed(2)}</TableCell>
@@ -231,7 +233,7 @@ const BatchDetails = () => {
       )}
       {hasMore && (
         <div style={{ float: 'right', padding: '16px 0' }}>
-          <Button variant="contained" onClick={() => setPage(prev => prev + 1)}>
+          <Button variant="contained" onClick={() => setPage((prev) => prev + 1)}>
             Load More
           </Button>
         </div>
