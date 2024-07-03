@@ -227,9 +227,15 @@ const preprocessBatch = async (batch) => {
           type: 'ach',
           ach: achData,
         });
-        payorAccount.methodAccountId = await createMethodAccount(payorAccount, payorEntity.methodEntityId);
-        await payorAccount.save();
-        console.log(`Created payor account: ${payorAccount}`);
+        const methodAccountId = await createMethodAccount(payorAccount, payorEntity.methodEntityId);
+
+        // Check if the account with the methodAccountId already exists
+        const existingAccount = await Account.findOne({ methodAccountId });
+        if (!existingAccount) {
+          payorAccount.methodAccountId = methodAccountId;
+          await payorAccount.save();
+          console.log(`Created payor account: ${payorAccount}`);
+        }
       }
 
       // Process payee account
@@ -252,9 +258,15 @@ const preprocessBatch = async (batch) => {
             // type: 'student_loan', // Field "liability.type" is not allowed.
           },
         });
-        payeeAccount.methodAccountId = await createMethodAccount(payeeAccount, employeeEntity.methodEntityId);
-        await payeeAccount.save();
-        // console.log(`Created payee account: ${payeeAccount}`);
+        const methodAccountId = await createMethodAccount(payeeAccount, employeeEntity.methodEntityId);
+
+        // Check if the account with the methodAccountId already exists
+        const existingAccount = await Account.findOne({ methodAccountId });
+        if (!existingAccount) {
+          payeeAccount.methodAccountId = methodAccountId;
+          await payeeAccount.save();
+          console.log(`Created payee account: ${payeeAccount}`);
+        }
       }
 
       // Update payment with method IDs
