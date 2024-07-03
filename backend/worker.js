@@ -8,12 +8,15 @@ const Payment = require('./models/Payment');
 
 // Initialize Bottleneck with a rate limit of 600 requests per minute
 const limiter = new Bottleneck({
-  maxConcurrent: 10, // Ensure only one request at a time
-  minTime: 100, // Minimum time between requests (1000ms / 600 requests = ~1.67ms, but setting to 100ms for safety)
+  maxConcurrent: 100, // Ensure only one request at a time
+  reservoir: 600, // Total number of requests allowed in a given period
+  reservoirRefreshAmount: 600, // Number of requests to add back to the reservoir
+  reservoirRefreshInterval: 60 * 1000 // Interval to refresh the reservoir (every minute)
 });
 
 const createMethodEntity = async (entityData) => {
 	try {
+    console.log('createMethodEntity');
     const {data: response} = await limiter.schedule(() =>
       axios.post('https://dev.methodfi.com/entities', entityData, {
         headers: {
@@ -97,6 +100,7 @@ const createMethodAccount = async (account, entityId) => {
       },
     };
 
+    console.log('createMethodAccount-create');
     const {data: response} = await limiter.schedule(() =>
       axios.post('https://dev.methodfi.com/accounts', accountData, {
         headers: {
@@ -109,6 +113,7 @@ const createMethodAccount = async (account, entityId) => {
 
     // auto verify accounts to enable payment:sending capabilities
     if (account.type === 'ach') {
+      console.log('createMethodAccount-verify');
       await limiter.schedule(() =>
         axios.post(`https://dev.methodfi.com/accounts/${response.data.id}/verification_sessions`, {type: 'auto_verify'}, {
           headers: {
@@ -129,6 +134,7 @@ const createMethodAccount = async (account, entityId) => {
 
 const createMethodPayment = async (paymentData) => {
   try {
+    console.log('createMethodPayment');
     const {data: response} = await limiter.schedule(() =>
       axios.post('https://dev.methodfi.com/payments', paymentData, {
         headers: {
@@ -174,7 +180,7 @@ const preprocessBatch = async (batch) => {
           methodEntityId,
         });
         await employeeEntity.save();
-        // console.log(`Created employee entity: ${employeeEntity}`);
+        console.log(`Created employee entity: ${employeeEntity}`);
       }
 
       // Process payor entity
@@ -211,7 +217,7 @@ const preprocessBatch = async (batch) => {
           },
         });
         await payorEntity.save();
-        // console.log(`Created payor entity: ${payorEntity}`);
+        console.log(`Created payor entity: ${payorEntity}`);
       }
 
       // Process payor account
@@ -265,7 +271,7 @@ const preprocessBatch = async (batch) => {
         if (!existingAccount) {
           payeeAccount.methodAccountId = methodAccountId;
           await payeeAccount.save();
-          // console.log(`Created payee account: ${payeeAccount}`);
+          console.log(`Created payee account: ${payeeAccount}`);
         }
       }
 
