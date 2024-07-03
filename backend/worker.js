@@ -8,7 +8,7 @@ const Payment = require('./models/Payment');
 
 // Initialize Bottleneck with a rate limit of 600 requests per minute
 const limiter = new Bottleneck({
-  maxConcurrent: 1, // Ensure only one request at a time
+  maxConcurrent: 10, // Ensure only one request at a time
   minTime: 100, // Minimum time between requests (1000ms / 600 requests = ~1.67ms, but setting to 100ms for safety)
 });
 
@@ -27,7 +27,7 @@ const createMethodEntity = async (entityData) => {
     const {data: entity} = response;
     if (entity.type === 'individual') {
       // Attempted phone and identity verification but 'element' is the only method available
-      // to my entities and is not longer allowed by the API.
+      // to my entities and this method is not longer allowed by the API when I try to use it.
       //
       // phone verification
       // if (entity.verification &&
@@ -265,7 +265,7 @@ const preprocessBatch = async (batch) => {
         if (!existingAccount) {
           payeeAccount.methodAccountId = methodAccountId;
           await payeeAccount.save();
-          console.log(`Created payee account: ${payeeAccount}`);
+          // console.log(`Created payee account: ${payeeAccount}`);
         }
       }
 
@@ -311,13 +311,6 @@ const processPayments = async (batch) => {
           destination: payment.payee.accountId,
           description: 'Loan Pmt',
         };
-        const response = await axios.post('https://dev.methodfi.com/payments', paymentData, {
-          headers: {
-            'Method-Version': '2024-04-04',
-            Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        });
         const methodPaymentId = await createMethodPayment(paymentData);
         payment.methodPaymentId = methodPaymentId;
         payment.status = 'complete';
