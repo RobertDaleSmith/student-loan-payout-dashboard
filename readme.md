@@ -26,7 +26,7 @@ This project is a student loan payout dashboard for Dunkin Donuts' HR team. It a
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/student-loan-payout-dashboard.git
+   git clone https://github.com/robertdalesmith/student-loan-payout-dashboard.git
    cd student-loan-payout-dashboard
    ```
 
@@ -66,6 +66,43 @@ This project is a student loan payout dashboard for Dunkin Donuts' HR team. It a
 2. Click the "Upload XML" button to upload an XML file containing employee loan information.
 3. After uploading, you will be redirected to the batch details page where you can approve or reject the batch and view detailed payment information.
 4. Generate CSV reports from the batch details page.
+
+## Running the everything with Docker
+
+You can optionally run the entire project using Docker, which includes the frontend, backend, and MongoDB services. This allows for a consistent development environment and easy setup.
+
+### Prerequisites
+
+Ensure you have Docker and Docker Compose installed on your machine.
+
+- [Docker Installation](https://docs.docker.com/get-docker/)
+- [Docker Compose Installation](https://docs.docker.com/compose/install/)
+
+### Steps to Run
+
+1. **Clone the repository** (if you haven't already):
+    ```bash
+    git clone https://github.com/robertdalesmith/student-loan-payout-dashboard.git
+    cd student-loan-payout-dashboard
+    ```
+
+2. **Add your environment variables**:
+    Ensure you have the following environment variables set in the `backend/.env` file:
+
+    ```env
+    MONGO_URL=mongodb://mongo:27017/studentLoanPayoutsDB
+    METHOD_API_KEY=your_api_key_here
+    ```
+
+3. **Build and run the Docker containers**:
+    ```bash
+    docker-compose up --build
+    ```
+
+4. **Access the application**:
+    - Frontend: Open your browser and navigate to `http://localhost:3000`
+    - Backend: The backend server will be running at `http://localhost:5001`
+    - MongoDB: The MongoDB instance will be running on port `27017`
 
 ## Screenshots
 
