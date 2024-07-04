@@ -53,3 +53,7 @@ jobs:
         run: |
           docker-compose exec -T backend npm test || echo "No tests found, skipping tests"
           docker-compose exec -T frontend npm test || echo "No tests found, skipping tests"
+
+      - name: Stop Docker Compose
+        run: |
+          docker-compose down --remove-orphans
