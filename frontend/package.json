@@ -45,6 +45,7 @@
     ]
   },
   "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@eslint/compat": "^1.1.0",
     "eslint": "^8.57.0",
     "eslint-config-airbnb": "^19.0.4",
@@ -54,5 +55,10 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "globals": "^15.8.0",
     "prop-types": "^15.8.1"
+  },
+  "jest": {
+    "transformIgnorePatterns": [
+      "node_modules/(?!axios)"
+    ]
   }
 }
