@@ -1,10 +1,17 @@
-const axios = require('axios');
 const moment = require('moment');
 const Bottleneck = require('bottleneck');
+const { Method, Environments } = require('method-node');
+
 const Batch = require('./models/Batch');
 const Entity = require('./models/Entity');
 const Account = require('./models/Account');
 const Payment = require('./models/Payment');
+
+const method = new Method({
+  apiKey: process.env.METHOD_API_KEY,
+  version: '2024-04-04',
+  env: Environments.dev,
+});
 
 // Initialize Bottleneck with a rate limit of 600 requests per minute
 const limiter = new Bottleneck({
@@ -15,67 +22,11 @@ const limiter = new Bottleneck({
 });
 
 const createMethodEntity = async (entityData) => {
-	try {
-    console.log('createMethodEntity');
-    const {data: response} = await limiter.schedule(() =>
-      axios.post('https://dev.methodfi.com/entities', entityData, {
-        headers: {
-          'Method-Version': '2024-04-04',
-          Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      })
-    );
-
-    const {data: entity} = response;
-    if (entity.type === 'individual') {
-      // Attempted phone and identity verification but 'element' is the only method available
-      // to my entities and this method is not longer allowed by the API when I try to use it.
-      //
-      // phone verification
-      // if (entity.verification &&
-      //     entity.verification.phone &&
-      //     entity.verification.phone.verified == false &&
-      //     entity.verification.phone.methods &&
-      //     entity.verification.phone.methods.length > 0
-      // ) {
-      //   await axios.post(`https://dev.methodfi.com/entities/${entity.id}/verification_sessions`, {
-      //     type: 'phone',
-      //     method: 'element',
-      //     element: {},
-      //   }, {
-      //     headers: {
-      //       'Method-Version': '2024-04-04',
-      //       Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-      //       'Content-Type': 'application/json',
-      //     },
-      //   });
-      // }
-
-      // identity verification
-      // if (entity.verification &&
-      //     entity.verification.identity &&
-      //     entity.verification.identity.verified == false &&
-      //     entity.verification.identity.matched == true &&
-      //     entity.verification.identity.methods &&
-      //     entity.verification.identity.methods.indexOf('kba') != -1
-      // ) {
-      //   console.log(`method: ${entity.verification.identity.methods[0]}`);
-      //   await axios.post(`https://dev.methodfi.com/entities/${entity.id}/verification_sessions`, {
-      //     type: 'identity',
-      //     method: 'kba',
-      //     kba: {}
-      //   }, {
-      //     headers: {
-      //       'Method-Version': '2024-04-04',
-      //       Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-      //       'Content-Type': 'application/json',
-      //     },
-      //   });
-      // }
-    }
-
-		return response.data.id;
+  try {
+    console.log('createMethodEntity:');
+    const methodEntity = await limiter.schedule(() => method.entities.create(entityData));
+    console.log(methodEntity);
+    return methodEntity.id;
   } catch (error) {
     console.error('Error creating Method entity:', error.response ? error.response.data : error.message);
     throw error;
@@ -84,6 +35,8 @@ const createMethodEntity = async (entityData) => {
 
 const createMethodAccount = async (account, entityId) => {
   try {
+    console.log('createMethodAccount:');
+
     const accountData = account.type === 'ach' ? {
       holder_id: entityId,
       ach: {
@@ -99,33 +52,17 @@ const createMethodAccount = async (account, entityId) => {
         type: account.liability.type,
       },
     };
+    const methodAccount = await limiter.schedule(() => method.accounts.create(accountData));
+    console.log(methodAccount);
 
-    console.log('createMethodAccount-create');
-    const {data: response} = await limiter.schedule(() =>
-      axios.post('https://dev.methodfi.com/accounts', accountData, {
-        headers: {
-          'Method-Version': '2024-04-04',
-          Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      })
-    );
-
-    // auto verify accounts to enable payment:sending capabilities
     if (account.type === 'ach') {
-      console.log('createMethodAccount-verify');
-      await limiter.schedule(() =>
-        axios.post(`https://dev.methodfi.com/accounts/${response.data.id}/verification_sessions`, {type: 'auto_verify'}, {
-          headers: {
-            'Method-Version': '2024-04-04',
-            Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        })
-      );
+      console.log('createMethodAccount.verify:');
+      const methodVerify = await limiter.schedule(() => method.accounts(methodAccount.id).verificationSessions.create({ type: 'auto_verify' }));
+
+      console.log(methodVerify);
     }
 
-    return response.data.id;
+    return methodAccount.id;
   } catch (error) {
     console.error('Error creating Method account:', error.response ? error.response.data : error.message);
     throw error;
@@ -134,18 +71,10 @@ const createMethodAccount = async (account, entityId) => {
 
 const createMethodPayment = async (paymentData) => {
   try {
-    console.log('createMethodPayment');
-    const {data: response} = await limiter.schedule(() =>
-      axios.post('https://dev.methodfi.com/payments', paymentData, {
-        headers: {
-          'Method-Version': '2024-04-04',
-          Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      })
-    );
-
-    return response.data.id;
+    console.log('createMethodPayment:');
+    const methodPayment = await limiter.schedule(() => method.payments.create(paymentData));
+    console.log(methodPayment);
+    return methodPayment.id;
   } catch (error) {
     console.error('Error creating Method payment:', error.response ? error.response.data : error.message);
     throw error;
@@ -199,7 +128,7 @@ const preprocessBatch = async (batch) => {
             line2: null,
             city: "Austin",
             state: "TX",
-            zip: "78705"
+            zip: "78705",
           },
         };
         const methodEntityId = await createMethodEntity(payorData);
@@ -245,13 +174,10 @@ const preprocessBatch = async (batch) => {
       }
 
       // Process payee account
-      const {data: payeeMerchantResponse} = await axios.get(`https://dev.methodfi.com/merchants?provider_id.plaid=${payment.payee.plaidId}`, {
-        headers: {
-          'Method-Version': '2024-04-04',
-          Authorization: `Bearer ${process.env.METHOD_API_KEY}`,
-        },
-      });
-      const merchantId = payeeMerchantResponse.data[0].id;
+      const payeeMerchantResponse = await method.merchants.list({ provider_id: { plaid: payment.payee.plaidId } });
+      console.log("payeeMerchantResponse!");
+      console.log(payeeMerchantResponse ? payeeMerchantResponse[0] : 'undefined');
+      const merchantId = payeeMerchantResponse[0].id;
 
       let payeeAccount = await Account.findOne({ holderId: employeeEntity._id, 'liability.account_number': payment.payee.loanaccountnumber });
       if (!payeeAccount) {
