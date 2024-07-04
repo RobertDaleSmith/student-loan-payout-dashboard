@@ -107,11 +107,11 @@ const BatchList = ({ refresh, onUpload }) => {
             <TableHead>
               <TableRow>
                 <TableCell>Name</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Approved</TableCell>
-                <TableCell>Created At</TableCell>
                 <TableCell>Payments</TableCell>
                 <TableCell>Total</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Created</TableCell>
+                <TableCell>Approved</TableCell>
                 <TableCell style={{ textAlign: 'right' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -133,11 +133,11 @@ const BatchList = ({ refresh, onUpload }) => {
                       {batch.name}
                     </span>
                   </TableCell>
-                  <TableCell>{getStatusChip(batch.status)}</TableCell>
-                  <TableCell>{batch.approved ? 'Yes' : 'No'}</TableCell>
-                  <TableCell>{dayjs(batch.createdAt).format('YYYY-MM-DD HH:mm:ss')}</TableCell>
                   <TableCell>{batch.paymentsCount}</TableCell>
                   <TableCell>${(batch.paymentsTotal / 100).toFixed(2)}</TableCell>
+                  <TableCell>{getStatusChip(batch.status)}</TableCell>
+                  <TableCell>{dayjs(batch.createdAt).format('YYYY-MM-DD HH:mm:ss')}</TableCell>
+                  <TableCell>{batch.approved ? 'Yes' : 'No'}</TableCell>
                   <TableCell style={{ textAlign: 'right' }}>
                     {!batch.approved && batch.status !== 'discarded' && (
                       <>

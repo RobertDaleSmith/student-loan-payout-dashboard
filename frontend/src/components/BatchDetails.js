@@ -120,6 +120,7 @@ const BatchDetails = () => {
       case 'complete':
         color = 'success';
         break;
+      case 'failed':
       case 'discarded':
         color = 'error';
         break;
@@ -225,7 +226,7 @@ const BatchDetails = () => {
                   <TableCell>{`${payment.employee.firstName} ${payment.employee.lastName}`}</TableCell>
                   <TableCell>${(payment.amount / 100).toFixed(2)}</TableCell>
                   <TableCell>
-                    <Chip label={payment.status} color={payment.status === 'complete' ? 'success' : 'default'} />
+                    {getStatusChip(payment.status)}
                   </TableCell>
                   <TableCell>{dayjs(payment.createdAt).format('YYYY-MM-DD HH:mm:ss')}</TableCell>
                 </TableRow>
