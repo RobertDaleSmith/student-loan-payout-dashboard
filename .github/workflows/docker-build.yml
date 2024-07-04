@@ -12,7 +12,7 @@ jobs:
 
     services:
       mongo:
-        image: mongo:latest
+        image: mongo:4.4
         ports:
           - 27017:27017
 
@@ -32,22 +32,17 @@ jobs:
 
       - name: Create .env file
         run: |
-          echo "MONGODB_URI=${{ secrets.MONGODB_URI }}" >> backend/.env
+          echo "MONGODB_URI=${{ secrets.MONGODB_URI }}" > backend/.env
           echo "METHOD_API_KEY=${{ secrets.METHOD_API_KEY }}" >> backend/.env
 
-      - name: Build and run frontend
+      - name: Build and run Docker Compose
         run: |
-          cd frontend && npm run build
-
-      - name: Build and run backend
-        run: |
-          cd backend && npm start
-
-      - name: Lint frontend
-        run: |
-          cd frontend && npm run lint
+          docker-compose up --build -d
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          METHOD_API_KEY: ${{ secrets.METHOD_API_KEY }}
 
       - name: Run tests
         run: |
-          cd frontend && npm test
-          cd ../backend && npm test
+          docker-compose exec backend npm test
+          docker-compose exec frontend npm test
