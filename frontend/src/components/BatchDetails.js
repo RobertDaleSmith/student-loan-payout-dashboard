@@ -173,7 +173,10 @@ const BatchDetails = () => {
       <Box mb={2}>
         <Typography variant="h6">Batch Name: {batch.name}</Typography>
         <Typography variant="body1">Batch ID: {batch._id}</Typography>
-        <Typography variant="body1">Status: {getStatusChip(batch.status)}</Typography>
+        <Box display="flex" alignItems="center">
+          <Typography variant="body1">Status:&nbsp;</Typography>
+          {getStatusChip(batch.status)}
+        </Box>
         <br />
         <Typography variant="body1">Approved: {batch.approved ? 'Yes' : 'No'}</Typography>
         <Typography variant="body1">Created At: {dayjs(batch.createdAt).format('YYYY-MM-DD HH:mm:ss')}</Typography>
